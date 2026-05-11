@@ -136,6 +136,11 @@
     }
     .anatomy-stage {
       position: relative !important;
+      height: auto !important;
+      display: block !important;
+      overflow: visible !important;
+    }
+    .anatomy-stage-inner {
       flex-direction: column !important;
       height: auto !important;
       padding: 0 24px !important;
@@ -144,6 +149,7 @@
     .anatomy-chair-stage {
       flex: none !important;
       width: 100% !important;
+      max-width: none !important;
       height: 70vh !important;
       min-height: 420px !important;
     }

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
@@ -72,10 +72,12 @@ interface ChairShowcaseProps {
 
 export default function ChairShowcase({ imageSrc = 'images/bonetti-1.jpg' }: ChairShowcaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const [canvasReady, setCanvasReady] = useState(false);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+    setCanvasReady(false);
 
     const rect0 = container.getBoundingClientRect();
     if (rect0.width < 2 || rect0.height < 2) return;
@@ -95,15 +97,28 @@ export default function ChairShowcase({ imageSrc = 'images/bonetti-1.jpg' }: Cha
     // ---------- Chair plane ----------
     const texLoader = new THREE.TextureLoader();
     const baseScale = { x: 2.2, y: 3 };
-    const texture = texLoader.load(imageSrc, (t) => {
-      t.colorSpace = THREE.SRGBColorSpace;
-      // Re-fit plane to texture aspect once it loads
-      const aspect = t.image.width / t.image.height;
-      const h = 3.0;
-      baseScale.x = h * aspect;
-      baseScale.y = h;
-      planeMesh.scale.set(baseScale.x, baseScale.y, 1);
-    });
+    const texture = texLoader.load(
+      imageSrc,
+      (t) => {
+        t.colorSpace = THREE.SRGBColorSpace;
+        // Re-fit plane to texture aspect once it loads
+        const aspect = (t.image && t.image.width) ? t.image.width / t.image.height : 0.7;
+        const h = 3.0;
+        baseScale.x = h * aspect;
+        baseScale.y = h;
+        planeMesh.scale.set(baseScale.x, baseScale.y, 1);
+        // Allow the canvas to render a couple of frames before fading the fallback
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => setCanvasReady(true));
+        });
+      },
+      undefined,
+      (err) => {
+        // Texture missing — keep DOM fallback <img> visible (it'll also 404
+        // if the file isn't there, but we still avoid hiding it)
+        console.warn('[ChairShowcase] Could not load texture:', imageSrc, err);
+      }
+    );
     texture.anisotropy = 8;
 
     const planeGeom = new THREE.PlaneGeometry(1, 1, 60, 60);
@@ -331,10 +346,33 @@ export default function ChairShowcase({ imageSrc = 'images/bonetti-1.jpg' }: Cha
         position: 'relative',
         width: '100%',
         height: '100%',
+        overflow: 'hidden',
         // Radial spotlight backdrop to mimic studio photography
         background:
           'radial-gradient(ellipse 60% 55% at 50% 55%, rgba(255, 248, 230, 0.55) 0%, rgba(240, 236, 215, 0) 70%)',
       }}
-    />
+    >
+      {/* DOM fallback — visible until WebGL canvas is ready, or if image is missing */}
+      <img
+        src={imageSrc}
+        alt=""
+        aria-hidden
+        draggable={false}
+        style={{
+          position: 'absolute',
+          inset: 0,
+          width: '100%',
+          height: '100%',
+          objectFit: 'contain',
+          padding: '4%',
+          opacity: canvasReady ? 0 : 1,
+          transition: 'opacity 0.9s cubic-bezier(0.16, 1, 0.3, 1)',
+          pointerEvents: 'none',
+          mixBlendMode: 'multiply',
+          userSelect: 'none',
+        }}
+        onError={(e) => { (e.currentTarget as HTMLImageElement).style.opacity = '0'; }}
+      />
+    </div>
   );
 }
