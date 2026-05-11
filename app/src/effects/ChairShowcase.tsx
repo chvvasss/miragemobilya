@@ -194,11 +194,16 @@ export default function ChairShowcase({ imageSrc = 'images/bonetti-1.jpg' }: Cha
     let scrollProgress = 0;
     const scrollTarget = { v: 0 };
 
-    const stTrigger = (container.closest('section') ?? container) as HTMLElement;
+    // Prefer the scrollytelling region as the trigger; fall back to nearest section
+    const stTrigger = (
+      container.closest('.anatomy-scrolly') ??
+      container.closest('section') ??
+      container
+    ) as HTMLElement;
     const st = ScrollTrigger.create({
       trigger: stTrigger,
-      start: 'top bottom',
-      end: 'bottom top',
+      start: 'top top',
+      end: 'bottom bottom',
       onUpdate: (self) => {
         scrollTarget.v = self.progress;
       },
@@ -222,31 +227,57 @@ export default function ChairShowcase({ imageSrc = 'images/bonetti-1.jpg' }: Cha
       mouseEased.y += (targetMouseY - mouseEased.y) * 0.06;
       planeMat.uniforms.uMouse.value.set(mouseEased.x, mouseEased.y);
 
-      // Scroll-driven rotation/scale of chair
-      const s = scrollProgress;
-      // Map progress 0..1 to rotation Y between -0.28 and +0.28
-      planeMesh.rotation.y = (s - 0.5) * 0.55 + (mouseEased.x - 0.5) * 0.12;
-      planeMesh.rotation.x = -(mouseEased.y - 0.5) * 0.08 + Math.sin(t * 0.4) * 0.012;
-      planeMesh.rotation.z = Math.sin(t * 0.3) * 0.005;
+      // Scroll-driven pose interpolation across 3 cinematic keyframes
+      const s = scrollProgress; // 0..1 across the scrollytelling region
 
-      // Subtle scale breathe synced to scroll position
-      const scaleBoost = 1 + Math.sin(s * Math.PI) * 0.04;
-      planeMesh.scale.set(baseScale.x * scaleBoost, baseScale.y * scaleBoost, 1);
+      // Pose keyframes (yaw rad, pitch rad, scale mult, x, y)
+      // Pose A — pillar 1: chair tilts right, slightly farther
+      // Pose B — pillar 2: chair faces forward, zoomed-in detail
+      // Pose C — pillar 3: chair tilts left, slightly farther
+      const POSES = [
+        { yaw: 0.42, pitch: 0.02, scale: 0.96, x: -0.18, y: -0.02 },
+        { yaw: 0.0, pitch: -0.04, scale: 1.18, x: 0.0, y: 0.04 },
+        { yaw: -0.42, pitch: 0.02, scale: 0.96, x: 0.18, y: -0.02 },
+      ];
 
-      // Slight Y float synced to scroll
-      planeMesh.position.y = Math.sin(t * 0.5) * 0.03 + (s - 0.5) * -0.1;
-      planeMesh.position.x = (mouseEased.x - 0.5) * 0.08;
+      const segCount = POSES.length;
+      const exact = s * (segCount - 1); // 0..(segCount-1)
+      const idxA = Math.min(segCount - 2, Math.max(0, Math.floor(exact)));
+      const idxB = idxA + 1;
+      const rawT = THREE.MathUtils.clamp(exact - idxA, 0, 1);
+      const segT = rawT * rawT * (3 - 2 * rawT); // smoothstep
 
-      // Shadow follows chair
+      const lerp = THREE.MathUtils.lerp;
+      const yaw = lerp(POSES[idxA].yaw, POSES[idxB].yaw, segT);
+      const pitch = lerp(POSES[idxA].pitch, POSES[idxB].pitch, segT);
+      const scaleK = lerp(POSES[idxA].scale, POSES[idxB].scale, segT);
+      const px = lerp(POSES[idxA].x, POSES[idxB].x, segT);
+      const py = lerp(POSES[idxA].y, POSES[idxB].y, segT);
+
+      // Ambient continuous motion on top of pose
+      planeMesh.rotation.y = yaw + (mouseEased.x - 0.5) * 0.08 + Math.sin(t * 0.3) * 0.01;
+      planeMesh.rotation.x = pitch - (mouseEased.y - 0.5) * 0.06 + Math.sin(t * 0.4) * 0.008;
+      planeMesh.rotation.z = Math.sin(t * 0.28) * 0.006;
+
+      planeMesh.scale.set(baseScale.x * scaleK, baseScale.y * scaleK, 1);
+
+      planeMesh.position.x = px + (mouseEased.x - 0.5) * 0.06;
+      planeMesh.position.y = py + Math.sin(t * 0.5) * 0.025;
+
+      // Shadow follows chair, intensifies during forward "zoom" pose
       shadowMesh.position.x = planeMesh.position.x;
-      shadowMesh.scale.x = 1 + scrollProgress * 0.08;
-      shadowMesh.material.opacity = 0.85 - Math.abs(planeMesh.rotation.y) * 0.4;
+      shadowMesh.position.y = -1.55 - py * 0.5;
+      shadowMesh.scale.x = scaleK * 1.05;
+      shadowMesh.material.opacity = 0.6 + (scaleK - 0.96) * 1.4 - Math.abs(planeMesh.rotation.y) * 0.3;
 
-      // Particles drift upward
+      // Particles drift upward — intensity rises during the focused middle pose
+      const focusAmt = 1 - Math.abs(s - 0.5) * 2; // peaks at s=0.5
+      const focus = Math.max(0, focusAmt);
+      pMat.opacity = 0.55 + focus * 0.5;
       const pos = pGeom.attributes.position.array as Float32Array;
       for (let i = 0; i < PARTICLE_COUNT; i++) {
-        pos[i * 3 + 1] += speeds[i];
-        pos[i * 3] += Math.sin(t * 0.5 + offsets[i]) * 0.0008;
+        pos[i * 3 + 1] += speeds[i] * (1 + focus * 0.6);
+        pos[i * 3] += Math.sin(t * 0.5 + offsets[i]) * 0.0009;
         if (pos[i * 3 + 1] > 2.5) pos[i * 3 + 1] = -2.5;
       }
       pGeom.attributes.position.needsUpdate = true;

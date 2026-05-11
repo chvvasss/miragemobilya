@@ -129,6 +129,46 @@
       grid-template-areas: "image" "text" !important;
       gap: 48px !important;
     }
+
+    /* Anatomy scrollytelling collapses on mobile */
+    .anatomy-scrolly {
+      height: auto !important;
+    }
+    .anatomy-stage {
+      position: relative !important;
+      flex-direction: column !important;
+      height: auto !important;
+      padding: 0 24px !important;
+      gap: 40px !important;
+    }
+    .anatomy-chair-stage {
+      flex: none !important;
+      width: 100% !important;
+      height: 70vh !important;
+      min-height: 420px !important;
+    }
+    .anatomy-text-stage {
+      flex: none !important;
+      width: 100% !important;
+      height: auto !important;
+      min-height: 0 !important;
+      max-width: none !important;
+    }
+    .anatomy-text-stage > article {
+      position: relative !important;
+      inset: auto !important;
+      opacity: 1 !important;
+      transform: none !important;
+      filter: none !important;
+      padding: 32px 0 !important;
+      border-bottom: 1px solid rgba(147, 137, 119, 0.18);
+    }
+    .anatomy-text-stage > article:last-child {
+      border-bottom: none;
+    }
+    .anatomy-chapter {
+      display: none !important;
+    }
   }
 
   .scroll-cue-line {

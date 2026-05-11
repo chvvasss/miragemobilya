@@ -8,12 +8,22 @@ gsap.registerPlugin(ScrollTrigger);
 
 export default function Anatomy() {
   const sectionRef = useRef<HTMLDivElement>(null);
+  const scrollyRef = useRef<HTMLDivElement>(null);
   const headerRef = useRef<HTMLDivElement>(null);
-  const pillarRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const pillarRefs = useRef<(HTMLElement | null)[]>([]);
+  const chapterNumRef = useRef<HTMLSpanElement>(null);
+  const chapterFillRef = useRef<HTMLDivElement>(null);
+  const chairStageRef = useRef<HTMLDivElement>(null);
   const pillars = anatomyConfig.pillars;
+  const segmentCount = Math.max(1, pillars.length);
 
   useEffect(() => {
+    const scrolly = scrollyRef.current;
+    if (!scrolly || pillars.length === 0) return;
+    const segments = pillars.length;
+
     const ctx = gsap.context(() => {
+      // Header reveal
       if (headerRef.current) {
         gsap.fromTo(
           headerRef.current.querySelectorAll('[data-anim]'),
@@ -34,32 +44,42 @@ export default function Anatomy() {
         );
       }
 
-      pillarRefs.current.forEach((el, i) => {
-        if (!el) return;
-        gsap.fromTo(
-          el.querySelectorAll('[data-anim]'),
-          { opacity: 0, y: 50, filter: 'blur(6px)' },
-          {
-            opacity: 1,
-            y: 0,
-            filter: 'blur(0px)',
-            duration: 1.2,
-            ease: 'power2.out',
-            stagger: 0.08,
-            delay: i * 0.05,
-            scrollTrigger: {
-              trigger: el,
-              start: 'top 75%',
-              end: 'top 40%',
-              toggleActions: 'play none none reverse',
-            },
+      // Scroll-driven pillar cross-fade & chapter indicator
+      ScrollTrigger.create({
+        trigger: scrolly,
+        start: 'top top',
+        end: 'bottom bottom',
+        onUpdate: (self) => {
+          const progress = self.progress; // 0..1 across the scrollytelling region
+          const exact = progress * segments; // 0..segments
+
+          // Update chapter indicator
+          const activeIdx = Math.min(segments - 1, Math.max(0, Math.floor(exact)));
+          if (chapterNumRef.current) {
+            chapterNumRef.current.textContent = String(activeIdx + 1).padStart(2, '0');
           }
-        );
+          if (chapterFillRef.current) {
+            chapterFillRef.current.style.transform = `scaleY(${progress})`;
+          }
+
+          // Cross-fade each pillar based on distance from its segment center
+          pillarRefs.current.forEach((el, i) => {
+            if (!el) return;
+            const distFromCenter = Math.abs(exact - (i + 0.5));
+            const raw = Math.max(0, 1 - distFromCenter / 0.55);
+            const eased = raw * raw * (3 - 2 * raw);
+            const yOff = (exact - (i + 0.5)) * -32;
+            const blur = (1 - raw) * 7;
+            el.style.opacity = String(eased);
+            el.style.transform = `translateY(${yOff}px)`;
+            el.style.filter = `blur(${blur}px)`;
+          });
+        },
       });
     }, sectionRef);
 
     return () => ctx.revert();
-  }, []);
+  }, [pillars.length]);
 
   if (!anatomyConfig.sectionLabel && !anatomyConfig.title && pillars.length === 0) {
     return null;
@@ -76,7 +96,7 @@ export default function Anatomy() {
         overflow: 'hidden',
       }}
     >
-      {/* Faint top gradient seam blending from manifesto's dark */}
+      {/* Top seam blending from manifesto's dark */}
       <div
         aria-hidden
         style={{
@@ -111,50 +131,25 @@ export default function Anatomy() {
               marginBottom: '24px',
             }}
           >
-            <span
-              aria-hidden
-              style={{
-                display: 'inline-block',
-                width: '40px',
-                height: '1px',
-                background: 'linear-gradient(to right, transparent, #938977)',
-              }}
-            />
-            <p
-              style={{
-                fontFamily: 'Inter, system-ui, sans-serif',
-                fontSize: '11px',
-                fontWeight: 600,
-                color: '#938977',
-                letterSpacing: '3px',
-                textTransform: 'uppercase',
-                margin: 0,
-              }}
-            >
+            <span aria-hidden style={{ width: '40px', height: '1px', background: 'linear-gradient(to right, transparent, #938977)' }} />
+            <p style={{ margin: 0, fontFamily: 'Inter, system-ui, sans-serif', fontSize: '11px', fontWeight: 600, color: '#938977', letterSpacing: '3px', textTransform: 'uppercase' }}>
               {anatomyConfig.sectionLabel}
             </p>
-            <span
-              aria-hidden
-              style={{
-                display: 'inline-block',
-                width: '40px',
-                height: '1px',
-                background: 'linear-gradient(to left, transparent, #938977)',
-              }}
-            />
+            <span aria-hidden style={{ width: '40px', height: '1px', background: 'linear-gradient(to left, transparent, #938977)' }} />
           </div>
         )}
         {anatomyConfig.title && (
           <h2
             data-anim
             style={{
+              margin: 0,
               fontFamily: '"Cormorant Garamond", Georgia, serif',
               fontSize: 'clamp(32px, 4.2vw, 52px)',
               fontWeight: 500,
               lineHeight: 1.18,
               color: '#180c04',
-              maxWidth: '760px',
-              margin: '0 auto',
+              maxWidth: '780px',
+              marginInline: 'auto',
               textWrap: 'balance',
             }}
           >
@@ -163,130 +158,205 @@ export default function Anatomy() {
         )}
       </div>
 
-      {/* Split Layout */}
+      {/* Scrollytelling region — one viewport per pillar */}
       <div
+        ref={scrollyRef}
+        className="anatomy-scrolly"
         style={{
-          display: 'flex',
-          maxWidth: '1400px',
-          margin: '0 auto',
-          minHeight: '100vh',
           position: 'relative',
+          height: `${segmentCount * 110}vh`,
         }}
       >
-        {/* Left: Sticky ChairShowcase */}
+        {/* Sticky stage */}
         <div
+          className="anatomy-stage"
           style={{
-            width: '50%',
             position: 'sticky',
             top: 0,
             height: '100vh',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
+            justifyContent: 'space-between',
+            padding: '0 clamp(24px, 5vw, 80px)',
+            gap: 'clamp(24px, 4vw, 64px)',
           }}
-          className="hidden md:flex"
         >
-          <div style={{ width: '100%', height: '85vh', position: 'relative' }}>
+          {/* Chair scene — left side */}
+          <div
+            ref={chairStageRef}
+            className="anatomy-chair-stage"
+            style={{
+              flex: '1 1 58%',
+              maxWidth: '780px',
+              height: '92vh',
+              minHeight: '500px',
+              position: 'relative',
+            }}
+          >
             <ChairShowcase />
           </div>
-        </div>
 
-        {/* Right: Scrolling Content */}
-        <div
-          style={{
-            width: '50%',
-            padding: '0 56px',
-          }}
-          className="w-full md:w-1/2"
-        >
-          {pillars.map((pillar, i) => (
-            <div
-              key={pillar.label}
-              ref={(el) => { pillarRefs.current[i] = el; }}
-              style={{
-                padding: '18vh 0',
-                borderBottom:
-                  i < pillars.length - 1 ? '1px solid rgba(147, 137, 119, 0.25)' : 'none',
-                position: 'relative',
-              }}
-            >
-              {/* Editorial pillar number */}
-              <div
-                data-anim
+          {/* Text overlay — right side, cross-fading pillars */}
+          <div
+            className="anatomy-text-stage"
+            style={{
+              flex: '0 1 38%',
+              height: '92vh',
+              minHeight: '500px',
+              position: 'relative',
+              maxWidth: '460px',
+            }}
+          >
+            {pillars.map((pillar, i) => (
+              <article
+                key={pillar.label}
+                ref={(el) => { pillarRefs.current[i] = el; }}
                 style={{
+                  position: 'absolute',
+                  inset: 0,
                   display: 'flex',
-                  alignItems: 'baseline',
-                  gap: '16px',
-                  marginBottom: '28px',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  opacity: 0,
+                  willChange: 'opacity, transform, filter',
                 }}
               >
-                <span
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: '16px', marginBottom: '32px' }}>
+                  <span
+                    style={{
+                      fontFamily: '"Cormorant Garamond", Georgia, serif',
+                      fontStyle: 'italic',
+                      fontSize: 'clamp(56px, 6vw, 80px)',
+                      fontWeight: 300,
+                      color: '#938977',
+                      lineHeight: 0.9,
+                      letterSpacing: '-2px',
+                    }}
+                  >
+                    {String(i + 1).padStart(2, '0')}
+                  </span>
+                  <span
+                    aria-hidden
+                    style={{
+                      flex: '0 0 56px',
+                      height: '1px',
+                      backgroundColor: '#938977',
+                      marginBottom: '20px',
+                      opacity: 0.6,
+                    }}
+                  />
+                  <p
+                    style={{
+                      margin: 0,
+                      fontFamily: 'Inter, system-ui, sans-serif',
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#938977',
+                      letterSpacing: '3px',
+                      textTransform: 'uppercase',
+                    }}
+                  >
+                    {pillar.label}
+                  </p>
+                </div>
+                <h3
                   style={{
+                    margin: '0 0 26px',
                     fontFamily: '"Cormorant Garamond", Georgia, serif',
-                    fontStyle: 'italic',
-                    fontSize: '52px',
-                    fontWeight: 300,
-                    color: '#938977',
-                    lineHeight: 1,
-                    letterSpacing: '-1px',
+                    fontSize: 'clamp(28px, 3vw, 44px)',
+                    fontWeight: 500,
+                    lineHeight: 1.15,
+                    color: '#180c04',
+                    textWrap: 'balance',
                   }}
                 >
-                  {String(i + 1).padStart(2, '0')}
-                </span>
-                <span
-                  aria-hidden
-                  style={{
-                    display: 'inline-block',
-                    flex: '0 0 56px',
-                    height: '1px',
-                    backgroundColor: '#938977',
-                    marginBottom: '14px',
-                    opacity: 0.6,
-                  }}
-                />
+                  {pillar.title}
+                </h3>
                 <p
                   style={{
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: '#938977',
-                    letterSpacing: '3px',
-                    textTransform: 'uppercase',
                     margin: 0,
+                    fontFamily: 'Inter, system-ui, sans-serif',
+                    fontSize: '15px',
+                    fontWeight: 400,
+                    lineHeight: 1.78,
+                    color: 'rgba(24, 12, 4, 0.72)',
+                    maxWidth: '440px',
                   }}
                 >
-                  {pillar.label}
+                  {pillar.body}
                 </p>
-              </div>
-              <h3
-                data-anim
+              </article>
+            ))}
+          </div>
+
+          {/* Chapter indicator — vertical, right edge */}
+          <div
+            aria-hidden
+            className="anatomy-chapter"
+            style={{
+              position: 'absolute',
+              top: '50%',
+              right: 'clamp(16px, 2.4vw, 32px)',
+              transform: 'translateY(-50%)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '18px',
+              pointerEvents: 'none',
+            }}
+          >
+            <span
+              ref={chapterNumRef}
+              style={{
+                fontFamily: '"Cormorant Garamond", Georgia, serif',
+                fontStyle: 'italic',
+                fontSize: '15px',
+                fontWeight: 400,
+                color: '#938977',
+                minWidth: '20px',
+                textAlign: 'center',
+              }}
+            >
+              01
+            </span>
+            <div
+              style={{
+                width: '1px',
+                height: '170px',
+                background: 'rgba(147, 137, 119, 0.25)',
+                position: 'relative',
+                overflow: 'hidden',
+              }}
+            >
+              <div
+                ref={chapterFillRef}
                 style={{
-                  fontFamily: '"Cormorant Garamond", Georgia, serif',
-                  fontSize: 'clamp(26px, 2.4vw, 34px)',
-                  fontWeight: 500,
-                  lineHeight: 1.22,
-                  color: '#180c04',
-                  marginBottom: '24px',
-                  textWrap: 'balance',
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: '#938977',
+                  transformOrigin: 'top',
+                  transform: 'scaleY(0)',
+                  willChange: 'transform',
                 }}
-              >
-                {pillar.title}
-              </h3>
-              <p
-                data-anim
-                style={{
-                  fontFamily: 'Inter, system-ui, sans-serif',
-                  fontSize: '15px',
-                  fontWeight: 400,
-                  lineHeight: 1.75,
-                  color: 'rgba(24, 12, 4, 0.7)',
-                  maxWidth: '480px',
-                }}
-              >
-                {pillar.body}
-              </p>
+              />
             </div>
-          ))}
+            <span
+              style={{
+                fontFamily: '"Cormorant Garamond", Georgia, serif',
+                fontStyle: 'italic',
+                fontSize: '13px',
+                fontWeight: 400,
+                color: 'rgba(147, 137, 119, 0.55)',
+                minWidth: '20px',
+                textAlign: 'center',
+              }}
+            >
+              {String(segmentCount).padStart(2, '0')}
+            </span>
+          </div>
         </div>
       </div>
     </section>
