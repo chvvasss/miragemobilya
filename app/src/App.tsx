@@ -6,7 +6,6 @@ import Manifesto from './sections/Manifesto';
 import Anatomy from './sections/Anatomy';
 import Tiers from './sections/Tiers';
 import Footer from './sections/Footer';
-import ParchmentUnroll from './effects/ParchmentUnroll';
 import ScrollProgress from './components/ScrollProgress';
 import { siteConfig } from './config';
 
@@ -40,7 +39,6 @@ function App() {
     >
       <ScrollProgress />
       <Navigation />
-      <ParchmentUnroll />
       <main>
         <Hero />
         <Manifesto />

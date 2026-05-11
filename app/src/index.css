@@ -123,6 +123,14 @@
     opacity: 0.25;
   }
 
+  @media (max-width: 860px) {
+    .tier-row {
+      grid-template-columns: minmax(0, 1fr) !important;
+      grid-template-areas: "image" "text" !important;
+      gap: 48px !important;
+    }
+  }
+
   .scroll-cue-line {
     position: relative;
     overflow: hidden;

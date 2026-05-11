@@ -69,15 +69,14 @@ export default function Navigation() {
       <div
         className="liquid-glass"
         style={{
-          maxWidth: '1240px',
-          margin: '0 24px',
+          maxWidth: '1280px',
           marginInline: 'auto',
-          maxInlineSize: '1240px',
-          padding: scrolled ? '12px 36px' : '16px 40px',
+          padding: scrolled ? '10px 32px' : '14px 36px',
           borderRadius: '2px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          gap: '32px',
           transition: 'padding 0.6s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.6s ease',
           borderBottom: scrolled
             ? `1px solid ${isLightSection ? 'rgba(24,12,4,0.10)' : 'rgba(252,250,238,0.10)'}`
@@ -92,7 +91,9 @@ export default function Navigation() {
               display: 'flex',
               alignItems: 'center',
               textDecoration: 'none',
-              transition: 'color 0.6s ease',
+              transition: 'opacity 0.4s ease',
+              flex: '0 0 auto',
+              padding: '4px 0',
             }}
           >
             <img
@@ -100,11 +101,15 @@ export default function Navigation() {
               alt={navigationConfig.brandName}
               onLoad={() => setLogoLoaded(true)}
               style={{
-                height: '36px',
+                height: scrolled ? '52px' : '60px',
                 width: 'auto',
+                maxHeight: '60px',
+                display: 'block',
                 opacity: logoLoaded ? 1 : 0,
-                transition: 'opacity 0.4s ease',
-                filter: isLightSection ? 'none' : 'brightness(0) saturate(100%) invert(95%) sepia(8%) saturate(1200%) hue-rotate(1deg) brightness(105%)',
+                transition: 'opacity 0.4s ease, height 0.6s cubic-bezier(0.16, 1, 0.3, 1), filter 0.6s ease',
+                filter: isLightSection
+                  ? 'none'
+                  : 'brightness(0) saturate(100%) invert(95%) sepia(8%) saturate(1200%) hue-rotate(1deg) brightness(105%)',
               }}
             />
           </a>

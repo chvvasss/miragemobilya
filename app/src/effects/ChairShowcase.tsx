@@ -70,7 +70,7 @@ interface ChairShowcaseProps {
   imageSrc?: string;
 }
 
-export default function ChairShowcase({ imageSrc = 'images/chair-anatomy.png' }: ChairShowcaseProps) {
+export default function ChairShowcase({ imageSrc = 'images/bonetti-1.jpg' }: ChairShowcaseProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
