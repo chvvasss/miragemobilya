@@ -62,20 +62,26 @@ export default function Navigation() {
         left: 0,
         width: '100%',
         zIndex: 100,
-        padding: scrolled ? '16px 0' : '24px 0',
+        padding: scrolled ? '14px 0' : '24px 0',
         transition: 'padding 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
       }}
     >
       <div
         className="liquid-glass"
         style={{
-          maxWidth: '1200px',
-          margin: '0 auto',
-          padding: '14px 40px',
+          maxWidth: '1240px',
+          margin: '0 24px',
+          marginInline: 'auto',
+          maxInlineSize: '1240px',
+          padding: scrolled ? '12px 36px' : '16px 40px',
           borderRadius: '2px',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
+          transition: 'padding 0.6s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.6s ease',
+          borderBottom: scrolled
+            ? `1px solid ${isLightSection ? 'rgba(24,12,4,0.10)' : 'rgba(252,250,238,0.10)'}`
+            : '1px solid transparent',
         }}
       >
         {navigationConfig.logo ? (
