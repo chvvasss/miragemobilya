@@ -1,13 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
-import gsap from 'gsap';
-import { ScrollTrigger } from 'gsap/ScrollTrigger';
-
-gsap.registerPlugin(ScrollTrigger);
 
 const vertexShader = `
   uniform float uTime;
-  uniform float uScroll;
   varying vec2 vUv;
   varying float vTilt;
 
@@ -16,14 +11,10 @@ const vertexShader = `
 
     vec3 pos = position;
 
-    // Gentle horizontal curvature for a tilted-card feel
-    float bend = (pos.x) * 0.06 * sin(uScroll * 3.14159);
-    pos.z += bend;
-
     // Continuous, almost imperceptible breathing motion
     pos.y += sin(uTime * 0.6 + pos.x * 1.5) * 0.004;
 
-    vTilt = bend;
+    vTilt = 0.0;
 
     gl_Position = projectionMatrix * modelViewMatrix * vec4(pos, 1.0);
   }
@@ -126,7 +117,6 @@ export default function ChairShowcase({ imageSrc = 'images/bonetti-1.jpg' }: Cha
       uniforms: {
         uTexture: { value: texture },
         uTime: { value: 0 },
-        uScroll: { value: 0 },
         uMouse: { value: new THREE.Vector2(0.5, 0.5) },
       },
       vertexShader,
@@ -205,26 +195,7 @@ export default function ChairShowcase({ imageSrc = 'images/bonetti-1.jpg' }: Cha
     };
     window.addEventListener('mousemove', handleMouseMove);
 
-    // ---------- Scroll-driven transforms ----------
-    let scrollProgress = 0;
-    const scrollTarget = { v: 0 };
-
-    // Prefer the scrollytelling region as the trigger; fall back to nearest section
-    const stTrigger = (
-      container.closest('.anatomy-scrolly') ??
-      container.closest('section') ??
-      container
-    ) as HTMLElement;
-    const st = ScrollTrigger.create({
-      trigger: stTrigger,
-      start: 'top top',
-      end: 'bottom bottom',
-      onUpdate: (self) => {
-        scrollTarget.v = self.progress;
-      },
-    });
-
-    // ---------- Render loop ----------
+    // ---------- Render loop (no scroll-driven transforms; only ambient + mouse) ----------
     let raf = 0;
     const clock = new THREE.Clock();
     const mouseEased = { x: 0.5, y: 0.5 };
@@ -233,65 +204,30 @@ export default function ChairShowcase({ imageSrc = 'images/bonetti-1.jpg' }: Cha
       const t = clock.getElapsedTime();
       planeMat.uniforms.uTime.value = t;
 
-      // Ease scroll
-      scrollProgress += (scrollTarget.v - scrollProgress) * 0.08;
-      planeMat.uniforms.uScroll.value = scrollProgress;
-
-      // Ease mouse
+      // Ease mouse for parallax
       mouseEased.x += (targetMouseX - mouseEased.x) * 0.06;
       mouseEased.y += (targetMouseY - mouseEased.y) * 0.06;
       planeMat.uniforms.uMouse.value.set(mouseEased.x, mouseEased.y);
 
-      // Scroll-driven pose interpolation across 3 cinematic keyframes
-      const s = scrollProgress; // 0..1 across the scrollytelling region
+      // Chair: gentle ambient breathing + subtle mouse parallax (no scroll-driven scale/rotation)
+      planeMesh.rotation.y = (mouseEased.x - 0.5) * 0.10 + Math.sin(t * 0.3) * 0.012;
+      planeMesh.rotation.x = -(mouseEased.y - 0.5) * 0.06 + Math.sin(t * 0.4) * 0.008;
+      planeMesh.rotation.z = Math.sin(t * 0.28) * 0.005;
 
-      // Pose keyframes (yaw rad, pitch rad, scale mult, x, y)
-      // Pose A — pillar 1: chair tilts right, slightly farther
-      // Pose B — pillar 2: chair faces forward, zoomed-in detail
-      // Pose C — pillar 3: chair tilts left, slightly farther
-      const POSES = [
-        { yaw: 0.42, pitch: 0.02, scale: 0.96, x: -0.18, y: -0.02 },
-        { yaw: 0.0, pitch: -0.04, scale: 1.18, x: 0.0, y: 0.04 },
-        { yaw: -0.42, pitch: 0.02, scale: 0.96, x: 0.18, y: -0.02 },
-      ];
+      planeMesh.scale.set(baseScale.x, baseScale.y, 1);
+      planeMesh.position.x = (mouseEased.x - 0.5) * 0.06;
+      planeMesh.position.y = Math.sin(t * 0.5) * 0.025;
 
-      const segCount = POSES.length;
-      const exact = s * (segCount - 1); // 0..(segCount-1)
-      const idxA = Math.min(segCount - 2, Math.max(0, Math.floor(exact)));
-      const idxB = idxA + 1;
-      const rawT = THREE.MathUtils.clamp(exact - idxA, 0, 1);
-      const segT = rawT * rawT * (3 - 2 * rawT); // smoothstep
-
-      const lerp = THREE.MathUtils.lerp;
-      const yaw = lerp(POSES[idxA].yaw, POSES[idxB].yaw, segT);
-      const pitch = lerp(POSES[idxA].pitch, POSES[idxB].pitch, segT);
-      const scaleK = lerp(POSES[idxA].scale, POSES[idxB].scale, segT);
-      const px = lerp(POSES[idxA].x, POSES[idxB].x, segT);
-      const py = lerp(POSES[idxA].y, POSES[idxB].y, segT);
-
-      // Ambient continuous motion on top of pose
-      planeMesh.rotation.y = yaw + (mouseEased.x - 0.5) * 0.08 + Math.sin(t * 0.3) * 0.01;
-      planeMesh.rotation.x = pitch - (mouseEased.y - 0.5) * 0.06 + Math.sin(t * 0.4) * 0.008;
-      planeMesh.rotation.z = Math.sin(t * 0.28) * 0.006;
-
-      planeMesh.scale.set(baseScale.x * scaleK, baseScale.y * scaleK, 1);
-
-      planeMesh.position.x = px + (mouseEased.x - 0.5) * 0.06;
-      planeMesh.position.y = py + Math.sin(t * 0.5) * 0.025;
-
-      // Shadow follows chair, intensifies during forward "zoom" pose
+      // Static-ish shadow that just tracks chair's tiny X drift
       shadowMesh.position.x = planeMesh.position.x;
-      shadowMesh.position.y = -1.55 - py * 0.5;
-      shadowMesh.scale.x = scaleK * 1.05;
-      shadowMesh.material.opacity = 0.6 + (scaleK - 0.96) * 1.4 - Math.abs(planeMesh.rotation.y) * 0.3;
+      shadowMesh.position.y = -1.55;
+      shadowMesh.scale.x = 1.0;
+      shadowMesh.material.opacity = 0.78 - Math.abs(planeMesh.rotation.y) * 0.25;
 
-      // Particles drift upward — intensity rises during the focused middle pose
-      const focusAmt = 1 - Math.abs(s - 0.5) * 2; // peaks at s=0.5
-      const focus = Math.max(0, focusAmt);
-      pMat.opacity = 0.55 + focus * 0.5;
+      // Particles drift upward continuously (no scroll-tied intensity)
       const pos = pGeom.attributes.position.array as Float32Array;
       for (let i = 0; i < PARTICLE_COUNT; i++) {
-        pos[i * 3 + 1] += speeds[i] * (1 + focus * 0.6);
+        pos[i * 3 + 1] += speeds[i];
         pos[i * 3] += Math.sin(t * 0.5 + offsets[i]) * 0.0009;
         if (pos[i * 3 + 1] > 2.5) pos[i * 3 + 1] = -2.5;
       }
@@ -322,7 +258,6 @@ export default function ChairShowcase({ imageSrc = 'images/bonetti-1.jpg' }: Cha
       cancelAnimationFrame(raf);
       window.removeEventListener('mousemove', handleMouseMove);
       ro.disconnect();
-      st.kill();
       planeGeom.dispose();
       planeMat.dispose();
       texture.dispose();
